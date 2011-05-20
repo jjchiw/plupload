@@ -220,7 +220,7 @@
 						file.status = plupload.DONE;
 
 						up.trigger('FileUploaded', file, {
-							response : info.text
+							response : info
 						});
 					}
 				});

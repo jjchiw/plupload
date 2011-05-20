@@ -233,7 +233,7 @@
 									file.status = plupload.DONE;
 
 									up.trigger('FileUploaded', file, {
-										response : res.value.body,
+										response : res.value,
 										status : httpStatus
 									});
 

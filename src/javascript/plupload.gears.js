@@ -375,7 +375,7 @@
 								if (++chunk >= chunks) {
 									file.status = plupload.DONE;
 									up.trigger('FileUploaded', file, {
-										response : req.responseText,
+										response : req,
 										status : req.status
 									});
 								} else {

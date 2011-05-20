@@ -573,7 +573,7 @@
 									if (!chunks || ++chunk >= chunks) {
 										file.status = plupload.DONE;
 										up.trigger('FileUploaded', file, {
-											response : xhr.responseText,
+											response : xhr,
 											status : httpStatus
 										});
 
