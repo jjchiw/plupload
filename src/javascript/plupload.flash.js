@@ -251,7 +251,8 @@
 						code : plupload.SECURITY_ERROR,
 						message : plupload.translate('Security error.'),
 						details : err.message,
-						file : uploader.getFile(lookup[err.id])
+						file : uploader.getFile(lookup[err.id]),
+						object : err
 					});
 				});
 

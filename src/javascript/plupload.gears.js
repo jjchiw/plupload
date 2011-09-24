@@ -388,7 +388,8 @@
 									file : file,
 									chunk : chunk,
 									chunks : chunks,
-									status : req.status
+									status : req.status,
+									object : req
 								});
 							}
 						}

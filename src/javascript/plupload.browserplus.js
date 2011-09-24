@@ -243,7 +243,8 @@
 											code : plupload.HTTP_ERROR,
 											message : plupload.translate('HTTP Error.'),
 											file : file,
-											status : httpStatus
+											status : httpStatus,
+											object : res
 										});
 									}
 							    }
