@@ -35,7 +35,7 @@ package com.plupload {
 	import flash.utils.Dictionary;
 	import flash.errors.IllegalOperationError;
 	import flash.system.Security;
-	import com.mxi.image.events.ImageEvent;
+	import flash.events.HTTPStatusEvent;
 
 	/**
 	 * This is the main class of the Plupload package.
@@ -50,7 +50,6 @@ package com.plupload {
 		private var id:String;
 		private var fileFilters:Array;
 		private var multipleFiles:Boolean;
-		private var fileRefArray:Array = [];
 		private var fileRef:FileReference;
 
 		/**
@@ -82,7 +81,9 @@ package com.plupload {
 			this.fileRefList.addEventListener(Event.CANCEL, cancelEvent);
 			this.fileRefList.addEventListener(Event.SELECT, selectEvent);
 
-			initSingleFileReference();
+			this.fileRef = new FileReference();
+			this.fileRef.addEventListener(Event.CANCEL, cancelEvent);
+			this.fileRef.addEventListener(Event.SELECT, selectEvent);
 
 			this.files = new Dictionary();
 
@@ -121,20 +122,6 @@ package com.plupload {
 
 			this.fireEvent("Init");
 		}
-		
-		
-		/**
-		 * In case of multipleFiles=false FileReference needs to be reinitialized for every file select dialog
-		 */
-		private function initSingleFileReference() : void {
-			if (this.fileRef) {
-				this.fileRef = null;
-			}
-			
-			this.fileRef = new FileReference();
-			this.fileRef.addEventListener(Event.CANCEL, cancelEvent);
-			this.fileRef.addEventListener(Event.SELECT, selectEvent);
-		}
 
 		/**
 		 * Event handler for selection cancelled. This simply fires the event out to the page level JS.
@@ -162,8 +149,20 @@ package com.plupload {
 					fireEvent("UploadProcess", {
 						id : file.id,
 						loaded : e.bytesLoaded,
-						size : e.bytesTotal
+						size : e.bytesTotal,
+						response : e
 					});
+				});
+				
+				// Listen to EXIF parser
+				file.addEventListener(ExifParsedEvent.EXIF_PARSED_DATA, function(e:ExifParsedEvent):void {			
+					fireEvent("ExifParsed", {
+						id : file.id,
+						exif : e.exif,
+						gps : e.gps,
+						response : e
+					});
+					
 				});
 
 				// Add error listener
@@ -172,7 +171,8 @@ package com.plupload {
 
 					fireEvent("IOError", {
 						id : file.id,
-						message : e.text.replace(/\\/g, "\\\\")
+						message : e.text,
+						response : e
 					});
 				});
 
@@ -182,27 +182,19 @@ package com.plupload {
 
 					fireEvent("SecurityError", {
 						id : file.id,
-						message : e.text.replace(/\\/g, "\\\\")
+						message : e.text,
+						response : e
 					});
 				});
 
-				file.addEventListener(ImageEvent.ERROR, function(e:ImageEvent) : void {
-					var file:File = e.target as File;
-					
-					fireEvent("ImageError", {
-						id : file.id,
-						code: e.code
-					});
-				});
-				
-				
 				// Add response listener
 				file.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, function(e:DataEvent):void {
 					var file:File = e.target as File;
 
 					fireEvent("UploadComplete", {
 						id : file.id,
-						text : e.text.replace(/\\/g, "\\\\")
+						text : e.text,
+						response : e
 					});
 				});
 
@@ -212,11 +204,22 @@ package com.plupload {
 
 					fireEvent("UploadChunkComplete", {
 						id : file.id,
-						text : e.text.replace(/\\/g, "\\\\"),
+						text : e.text,
 						chunk : e.chunk,
-						chunks : e.chunks
+						chunks : e.chunks,
+						response : e
 					});
 				});
+				
+				/* Add response listener
+				file.addEventListener(HTTPStatusEvent.HTTP_RESPONSE_STATUS, function(e:HTTPStatusEvent):void {
+					var file:File = e.target as File;
+
+					fireEvent("UploadResponseComplete", {
+						id : file.id,
+						response : e
+					});
+				});*/
 
 				files[file.id] = file;
 
@@ -225,20 +228,16 @@ package com.plupload {
 			}
 
 			if (this.multipleFiles) {
-				for (var i:Number = 0; i < this.fileRefList.fileList.length; i++) {
+				for (var i:Number = 0; i < this.fileRefList.fileList.length; i++)
 					processFile(new File("file_" + (this.idCounter++), this.fileRefList.fileList[i]));
-				}
-			} else {
+			} else
 				processFile(new File("file_" + (this.idCounter++), this.fileRef));
-				this.fileRefArray.push(this.fileRef);
-				initSingleFileReference();
-			}
 
 			this.fireEvent("SelectFiles", selectedFiles);
 		}
 
 		/**
-		 * Sefnd out all stage events to page level JS inorder to fake click, hover etc.
+		 * Send out all stage events to page level JS inorder to fake click, hover etc.
 		 *
 		 * @param e Event object.
 		 */

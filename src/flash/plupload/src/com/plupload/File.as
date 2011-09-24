@@ -9,11 +9,8 @@
  */
 
 package com.plupload {
-	import com.formatlos.BitmapDataUnlimited;
-	import com.formatlos.events.BitmapDataUnlimitedEvent;
 	import flash.display.Bitmap;
 	import flash.display.BitmapData;
-	import flash.display.IBitmapDrawable;
 	import flash.events.EventDispatcher;
 	import flash.geom.Matrix;
 	import flash.net.FileReference;
@@ -32,11 +29,13 @@ package com.plupload {
 	import flash.net.URLVariables;
 	import flash.utils.ByteArray;
 	import flash.external.ExternalInterface;
-	
-	import com.mxi.image.Image;
-	import com.mxi.image.events.ImageEvent;
-	
-	
+	import mx.graphics.codec.JPEGEncoder;
+	import mx.graphics.codec.PNGEncoder;
+	import flash.filters.BlurFilter;
+	import flash.filters.BitmapFilterQuality;
+	import flash.geom.Point;
+	import flash.geom.Rectangle;
+
 	/**
 	 * Container class for file references, this handles upload logic for individual files.
 	 */
@@ -44,7 +43,7 @@ package com.plupload {
 		// Private fields
 		private var _fileRef:FileReference, _cancelled:Boolean;
 		private var _uploadUrl:String, _uploadPath:String, _mimeType:String;
-		private var _id:String, _fileName:String, _size:Number, _imageData:ByteArray;
+		private var _id:String, _fileName:String, _size:uint, _imageData:ByteArray;
 		private var _multipart:Boolean, _fileDataName:String, _chunking:Boolean, _chunk:int, _chunks:int, _chunkSize:int, _postvars:Object;
 		private var _headers:Object, _settings:Object;
 
@@ -72,7 +71,7 @@ package com.plupload {
 		/**
 		 * File size property.
 		 */
-		public function get size():Number {
+		public function get size():int {
 			return this._size;
 		}
 
@@ -111,7 +110,7 @@ package com.plupload {
 
 		public function canUseSimpleUpload(settings:Object):Boolean {
 			var multipart:Boolean = new Boolean(settings["multipart"]);
-			var resize:Boolean = (settings["width"] || settings["height"] || settings["quality"]);
+			var resize:Boolean = (settings["width"] || settings["height"]);
 			var chunking:Boolean = (settings["chunk_size"] > 0);
 
 			// Check if it's not an image, chunking is disabled, multipart enabled and the ref_upload setting isn't forced
@@ -119,16 +118,8 @@ package com.plupload {
 		}
 
 		public function simpleUpload(url:String, settings:Object):void {
-			var file:File = this, request:URLRequest, postData:URLVariables, fileDataName:String, 
-				onProgress:Function, onUploadComplete:Function, onIOError:Function, onSecurityErrorEvent:Function,
-				
-				removeAllListeners:Function = function () : void {
-					file._fileRef.removeEventListener(ProgressEvent.PROGRESS, onProgress);
-					file._fileRef.removeEventListener(DataEvent.UPLOAD_COMPLETE_DATA, onUploadComplete);
-					file._fileRef.removeEventListener(IOErrorEvent.IO_ERROR, onIOError);
-					file._fileRef.removeEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityErrorEvent);
-				};
-			
+			var file:File = this, request:URLRequest, postData:URLVariables, fileDataName:String;
+
 			file._postvars = settings["multipart_params"];
 			file._chunk = 0;
 			file._chunks = 1;
@@ -138,9 +129,7 @@ package com.plupload {
 			file._postvars["name"] = settings["name"];
 
 			for (var key:String in file._postvars) {
-				if (key != 'Filename') { // Flash will add it by itself, so we need to omit potential duplicate
-					postData[key] = file._postvars[key];
-				}
+				postData[key] = file._postvars[key];
 			}
 
 			request = new URLRequest();
@@ -149,13 +138,8 @@ package com.plupload {
 			request.data = postData;
 
 			fileDataName = new String(settings["file_data_name"]);
-			
-			onUploadComplete = function(e:DataEvent):void {
-				removeAllListeners();
-				
-				var pe:ProgressEvent = new ProgressEvent(ProgressEvent.PROGRESS, false, false, file._size, file._size);
-				dispatchEvent(pe);
-				
+
+			file._fileRef.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, function(e:DataEvent):void {
 				// Fake UPLOAD_COMPLETE_DATA event
 				var uploadChunkEvt:UploadChunkEvent = new UploadChunkEvent(
 					UploadChunkEvent.UPLOAD_CHUNK_COMPLETE_DATA,
@@ -165,46 +149,37 @@ package com.plupload {
 					file._chunk,
 					file._chunks
 				);
-				
+
 				file._chunk++;
-				
 				dispatchEvent(uploadChunkEvt);
 
+				var pe:ProgressEvent = new ProgressEvent(ProgressEvent.PROGRESS, false, false, file._size, file._size);
+				dispatchEvent(pe);
+
 				dispatchEvent(e);
-			};
-			file._fileRef.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, onUploadComplete);
+			});
 
 			// Delegate upload IO errors
-			onIOError = function(e:IOErrorEvent):void {
-				removeAllListeners();
+			file._fileRef.addEventListener(IOErrorEvent.IO_ERROR, function(e:IOErrorEvent):void {
 				dispatchEvent(e);
-			};
-			file._fileRef.addEventListener(IOErrorEvent.IO_ERROR, onIOError);
+			});
 
 			// Delegate secuirty errors
-			onSecurityErrorEvent = function(e:SecurityErrorEvent):void {
-				removeAllListeners();
+			file._fileRef.addEventListener(SecurityErrorEvent.SECURITY_ERROR, function(e:SecurityErrorEvent):void {
 				dispatchEvent(e);
-			};
-			file._fileRef.addEventListener(SecurityErrorEvent.SECURITY_ERROR, onSecurityErrorEvent);
+			});
 
 			// Delegate progress
-			onProgress = function(e:ProgressEvent):void {	
+			file._fileRef.addEventListener(ProgressEvent.PROGRESS, function(e:ProgressEvent):void {
 				dispatchEvent(e);
-			};
-			file._fileRef.addEventListener(ProgressEvent.PROGRESS, onProgress);
-			
+			});
+
 			file._fileRef.upload(request, fileDataName, false);
 		}
 
 		public function advancedUpload(url:String, settings:Object):void {
 			var file:File = this, width:int, height:int, quality:int, multipart:Boolean, chunking:Boolean, fileDataName:String;
 			var chunk:int, chunks:int, chunkSize:int, postvars:Object;
-			var onComplete:Function, onIOError:Function,
-				removeAllListeneres:Function = function() : void {
-					file._fileRef.removeEventListener(Event.COMPLETE, onComplete);
-					file._fileRef.removeEventListener(IOErrorEvent.IO_ERROR, onIOError);
-				};
 
 			// Setup internal vars
 			this._uploadUrl = url;
@@ -212,19 +187,150 @@ package com.plupload {
 			this._headers = settings.headers;
 			this._mimeType = settings.mime;
 
+			// Handle image resizing settings
+			if (settings["width"] || settings["height"]) {
+				width = settings["width"];
+				height = settings["height"];
+				quality = settings["quality"];
+			}
+
 			multipart = new Boolean(settings["multipart"]);
 			fileDataName = new String(settings["file_data_name"]);
 			chunkSize = settings["chunk_size"];
 			chunking = chunkSize > 0;
 			postvars = settings["multipart_params"];
 			chunk = 0;
+			chunks = Math.ceil(this._fileRef.size / chunkSize);
+
+			// If chunking is disabled then upload file in one huge chunk
+			if (!chunking) {
+				chunkSize = this.size;
+				chunks = 1;
+			}
 
 			// When file is loaded start uploading
-			onComplete = function(e:Event):void {
-				removeAllListeneres();
+			this._fileRef.addEventListener(Event.COMPLETE, function(e:Event):void {
+				var loader:flash.display.Loader;
+				var parser:ExifParser = new ExifParser();
+				parser.init(file._fileRef.data);
 				
-				var startUpload:Function = function() : void
-				{
+				// Load JPEG file and scale it down if needed
+				if (/\.(jpeg|jpg|png)$/i.test(file._fileName) && (width || height)) {
+					loader = new flash.display.Loader();
+					loader.contentLoaderInfo.addEventListener(Event.COMPLETE, function(e:Event):void {
+						var loadedBitmapData:BitmapData = Bitmap(e.target.content).bitmapData;
+						var matrix:Matrix = new Matrix(), scale:Number;
+
+						scale = Math.min(width / loadedBitmapData.width, height / loadedBitmapData.height);
+
+						// Do we need to scale
+						if (scale < 1) {
+							// Set rect and pt for filter area
+							var rect:Rectangle = new Rectangle(1, 1, loadedBitmapData.width, loadedBitmapData.height);
+							var pt:Point = new Point(1, 1);
+
+							// Set filteramount inversely proportional to resize amount
+							var filterAmount:Number;
+
+							if (scale < .1) {
+								filterAmount = 5
+							} else if (scale < .25) {
+								filterAmount = 4
+							} else if (scale < .50) {
+								filterAmount = 3
+							} else if (scale < .75) {
+								filterAmount = 2
+							} else {
+								filterAmount = 1
+							}
+
+							// Create blurfilter with variable filterAmount of blur
+							var blurFilter:BlurFilter = new BlurFilter(filterAmount, filterAmount, BitmapFilterQuality.HIGH);
+
+							// Create working bitmap to apply filter to. Does not work if applying direct to loadedBitmap for some reason
+							var workingBitmapData:BitmapData = new BitmapData(loadedBitmapData.width, loadedBitmapData.height);
+
+							workingBitmapData.draw(loadedBitmapData, matrix, null, null, null, true);
+							workingBitmapData.applyFilter(workingBitmapData, rect, pt, blurFilter);
+
+							width = Math.round(loadedBitmapData.width * scale);
+							height = Math.round(loadedBitmapData.height * scale);
+
+							// Setup scale matrix
+							matrix.scale(width / loadedBitmapData.width, height / loadedBitmapData.height);
+
+							// Draw workingbitmap into scaled down bitmap
+							var outputBitmapData:BitmapData = new BitmapData(width, height);
+							outputBitmapData.draw(workingBitmapData, matrix, null, null, null, true);
+
+/*							width = Math.round(loadedBitmapData.width * scale);
+							height = Math.round(loadedBitmapData.height * scale);
+
+							// Setup scale matrix
+							matrix.scale(width / loadedBitmapData.width, height / loadedBitmapData.height);
+
+							// Draw loaded bitmap into scaled down bitmap
+							var outputBitmapData:BitmapData = new BitmapData(width, height);
+							outputBitmapData.draw(loadedBitmapData, matrix);
+*/
+							// Encode bitmap as JPEG
+							if (settings["format"] == "jpg") {
+								// Backup EXIF headers if available, taking into account new width/height
+								var APP1:ByteArray = parser.APP1( { width: width, height: height } );
+								
+								dispatchEvent(new ExifParsedEvent(
+									ExifParsedEvent.EXIF_PARSED_DATA,
+									false,
+									false,
+									{
+										exif: parser.EXIF(),
+										gps: parser.GPS()
+									}
+								));
+								
+								file._imageData = new JPEGEncoder(quality).encode(outputBitmapData);
+								
+								// Restore EXIF headers
+								if (APP1.length) {
+									parser.init(file._imageData);
+									parser.setAPP1(APP1);
+									file._imageData = parser.getBinary();
+								}
+							} else
+								file._imageData = new PNGEncoder().encode(outputBitmapData);
+
+							// Update file size and buffer position
+							file._imageData.position = 0;
+							file._size = file._imageData.length;
+						}
+
+						if (chunking) {
+							chunks = Math.ceil(file._size / chunkSize);
+
+							// Force at least 4 chunks to fake progress. We need to fake this since the URLLoader
+							// doesn't have a upload progress event and we can't use FileReference.upload since it
+							// doesn't support cookies, breaks on HTTPS and doesn't support custom data so client
+							// side image resizing will not be possible.
+							if (chunks < 4 && file._size > 1024 * 32) {
+								chunkSize = Math.ceil(file._size / 4);
+								chunks = 4;
+							}
+						}
+
+						// Start uploading the scaled down image
+						file._multipart = multipart;
+						file._fileDataName = fileDataName;
+						file._chunking = chunking;
+						file._chunk = chunk;
+						file._chunks = chunks;
+						file._chunkSize = chunkSize;
+						file._postvars = postvars;
+
+						file.uploadNextChunk();
+					});
+
+					loader.loadBytes(file._fileRef.data);
+				} else {
 					if (chunking) {
 						chunks = Math.ceil(file._size / chunkSize);
 
@@ -236,13 +342,8 @@ package com.plupload {
 							chunkSize = Math.ceil(file._size / 4);
 							chunks = 4;
 						}
-					} else {
-						// If chunking is disabled then upload file in one huge chunk
-						chunkSize = file._size;
-						chunks = 1;
 					}
 
-					// Start uploading the scaled down image
 					file._multipart = multipart;
 					file._fileDataName = fileDataName;
 					file._chunking = chunking;
@@ -253,37 +354,12 @@ package com.plupload {
 
 					file.uploadNextChunk();
 				}
-								
-				if (/\.(jpeg|jpg|png)$/i.test(file._fileName) && (settings["width"] || settings["height"] || settings["quality"])) {
-					var image:Image = new Image(file._fileRef.data);
-					image.addEventListener(ImageEvent.COMPLETE, function(e:ImageEvent) : void 
-					{
-						image.removeAllEventListeners();
-						if (image.imageData) {
-							file._imageData = image.imageData;
-							file._imageData.position = 0;
-							file._size = image.imageData.length;
-						}
-						startUpload();
-					});
-					image.addEventListener(ImageEvent.ERROR, function(e:ImageEvent) : void
-					{
-						image.removeAllEventListeners();
-						file.dispatchEvent(e);
-					});
-					image.scale(settings["width"], settings["height"], settings["quality"]);
-				} else {
-					startUpload();
-				}					
-			};
-			this._fileRef.addEventListener(Event.COMPLETE, onComplete);
+			});
 
 			// File load IO error
-			onIOError = function(e:Event):void {
-				removeAllListeneres();
+			this._fileRef.addEventListener(IOErrorEvent.IO_ERROR, function(e:Event):void {
 				this.dispatchEvent(e);
-			};
-			this._fileRef.addEventListener(IOErrorEvent.IO_ERROR, onIOError);
+			});
 
 			// Start loading local file
 			this._fileRef.load();
@@ -302,6 +378,7 @@ package com.plupload {
 				if(this._fileRef.data) {
 					this._fileRef.data.clear();
 				}
+				this._fileRef = null;
 				this._imageData = null;
 
 				return false;
@@ -351,11 +428,13 @@ package com.plupload {
 
 			// Delegate upload IO errors
 			urlStream.addEventListener(IOErrorEvent.IO_ERROR, function(e:IOErrorEvent):void {
+				file._chunk = file._chunks; // Cancel upload of all remaining chunks
 				dispatchEvent(e);
 			});
 
 			// Delegate secuirty errors
 			urlStream.addEventListener(SecurityErrorEvent.SECURITY_ERROR, function(e:SecurityErrorEvent):void {
+				file._chunk = file._chunks; // Cancel upload of all remaining chunks
 				dispatchEvent(e);
 			});
 

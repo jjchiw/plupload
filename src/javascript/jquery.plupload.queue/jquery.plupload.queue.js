@@ -293,7 +293,9 @@
 							$('span.plupload_total_status,span.plupload_total_file_size', target).show();
 						}
 					} else {
-						updateList();
+						if (settings.multiple_queues) {
+							updateList(); 
+						}
 						$('a.plupload_stop,div.plupload_progress', target).hide();
 						$('a.plupload_delete', target).css('display', 'block');
 					}
@@ -301,8 +303,9 @@
 
 				uploader.bind('QueueChanged', updateList);
 
-				uploader.bind('FileUploaded', function(up, file) {
+				uploader.bind('FileUploaded', function(up, file, response) {
 					handleStatus(file);
+					console.log(response)
 				});
 
 				uploader.bind("UploadProgress", function(up, file) {
