@@ -303,9 +303,8 @@
 
 				uploader.bind('QueueChanged', updateList);
 
-				uploader.bind('FileUploaded', function(up, file, response) {
+				uploader.bind('FileUploaded', function(up, file, httpHeaders, httpStatus) {
 					handleStatus(file);
-					console.log(response)
 				});
 
 				uploader.bind("UploadProgress", function(up, file) {

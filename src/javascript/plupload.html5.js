@@ -28,6 +28,17 @@
 		};
 	}
 	
+	function convertHeaderToJsonString(headers){
+		var map = {};
+		var headersArray = headers.split("\n")
+		for(var i = 0; i < headersArray.length; i++){
+			var index = headersArray[i].indexOf(":");
+			map[headersArray[i].substring(0, index)] = headersArray[i].substring(index + 1, headersArray[i].length);
+
+		}
+		
+		return JSON.stringify(map);
+	}
 
 	function readFileAsDataURL(file, callback) {
 		var reader;
@@ -541,8 +552,7 @@
 										code : plupload.HTTP_ERROR,
 										message : plupload.translate('HTTP Error.'),
 										file : file,
-										status : httpStatus,
-										object : xhr
+										response : xhr.responseText
 									});
 								} else {
 									// Handle chunk response
@@ -554,7 +564,7 @@
 											status : httpStatus
 										};
 
-										up.trigger('ChunkUploaded', file, chunkArgs);
+										up.trigger('ChunkUploaded', file, chunkArgs, xhr.responseText, convertHeaderToJsonString(xhr.getAllResponseHeaders()), xhr.status);
 										loaded += curChunkSize;
 
 										// Stop upload
@@ -574,8 +584,9 @@
 									if (!chunks || ++chunk >= chunks) {
 										file.status = plupload.DONE;
 										up.trigger('FileUploaded', file, {
-											response : xhr,
-											status : httpStatus
+											response : xhr.responseText,
+											httpHeaders : convertHeaderToJsonString(xhr.getAllResponseHeaders()),
+											httpStatus : xhr.status
 										});
 
 										nativeFile = blob = html5files[file.id] = null; // Free memory

@@ -20,6 +20,8 @@ using System.Collections.Generic;
 using FluxJpeg.Core.Encoder;
 using FluxJpeg.Core;
 using Plupload.PngEncoder;
+using Newtonsoft.Json;
+using System.Linq;
 
 namespace Moxiecode.Plupload {
 	enum ImageType {
@@ -381,7 +383,7 @@ namespace Moxiecode.Plupload {
 				this.chunk++;
 
 				syncContext.Send(delegate {
-					this.OnUploadChunkComplete(new UploadEventArgs(content, this.chunk - 1, this.chunks));
+					this.OnUploadChunkComplete(new UploadEventArgs(content, this.chunk - 1, this.chunks, response));
 				}, this);
 			} catch (Exception ex) {
 				syncContext.Send(delegate {
@@ -503,13 +505,14 @@ namespace Moxiecode.Plupload {
 		private string response;
 		private long chunk;
 		private int chunks;
+		private HttpWebResponse httpResponse;
 		#endregion
 
 		/// <summary>
 		///  Main constructor for the upload event.
 		/// </summary>
 		/// <param name="response">Response contents as a string.</param>
-		public UploadEventArgs(string response) : this(response, 0, 0) {
+		public UploadEventArgs(string response) : this(response, 0, 0, null) {
 		}
 
 		/// <summary>
@@ -518,10 +521,11 @@ namespace Moxiecode.Plupload {
 		/// <param name="response">Response contents as a string.</param>
 		/// <param name="chunk">Current chunk number.</param>
 		/// <param name="chunks">Total chunks.</param>
-		public UploadEventArgs(string response, long chunk, int chunks) {
+		public UploadEventArgs(string response, long chunk, int chunks, HttpWebResponse responseHeader) {
 			this.response = response;
 			this.chunk = chunk;
 			this.chunks = chunks;
+			this.httpResponse = responseHeader;
 		}
 
 		/// <summary>Response from upload request.</summary>
@@ -537,6 +541,17 @@ namespace Moxiecode.Plupload {
 		/// <summary>Total number of chunks.</summary>
 		public int Chunks {
 			get { return chunks; }
+		}
+
+		/// <summary>Total number of chunks.</summary>
+		public HttpWebResponse HttpResponse
+		{
+			get { return httpResponse; }
+		}
+
+		public string HttpHeaderAsJsonString
+		{
+			get { return JsonConvert.SerializeObject(httpResponse.Headers.AllKeys.ToDictionary(x => x, y => httpResponse.Headers[y])); }
 		}
 	}
 

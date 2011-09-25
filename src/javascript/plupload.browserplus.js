@@ -222,7 +222,8 @@
 										chunk : chunk,
 										chunks : chunks,
 										response : res.value.body,
-										status : httpStatus
+										httpHeaders : JSON.stringify(res.value.headers),
+										httpStatus : httpStatus
 									});
 								}
 
@@ -233,8 +234,9 @@
 									file.status = plupload.DONE;
 
 									up.trigger('FileUploaded', file, {
-										response : res.value,
-										status : httpStatus
+										response : res.value.body,
+										httpHeaders : JSON.stringify(res.value.headers),
+										httpStatus : httpStatus
 									});
 
 									// Is error status

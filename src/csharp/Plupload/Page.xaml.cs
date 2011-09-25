@@ -23,6 +23,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Threading;
 using Moxiecode.Plupload;
+using System.Net.Browser;
 
 namespace Moxiecode.Plupload {
 	/// <summary>
@@ -42,6 +43,8 @@ namespace Moxiecode.Plupload {
 		/// </summary>
 		/// <param name="init_params">Silverlight init params.</param>
 		public Page(IDictionary<string, string> init_params) {
+			bool registerResult = WebRequest.RegisterPrefix("http://", WebRequestCreator.ClientHttp);
+
 			InitializeComponent();
 
 			HtmlPage.RegisterScriptableObject("Upload", this);
@@ -74,14 +77,13 @@ namespace Moxiecode.Plupload {
 
 						uploadFile.UploadChunkComplete += delegate(object up_sender, UploadEventArgs args) {
 							FileReference evtFile = (FileReference) up_sender;
-
-							this.FireEvent("UploadChunkSuccessful", evtFile.Id, args.Chunk, args.Chunks, args.Response);
+							this.FireEvent("UploadChunkSuccessful", evtFile.Id, args.Chunk, args.Chunks, args.Response, args.HttpHeaderAsJsonString, args.HttpResponse.StatusCode);
 						};
 
 						uploadFile.UploadComplete += delegate(object up_sender, UploadEventArgs args) {
 							FileReference evtFile = (FileReference) up_sender;
 
-							this.FireEvent("UploadSuccessful", evtFile.Id, args.Response);
+							this.FireEvent("UploadSuccessful", evtFile.Id, args.Response, args.HttpHeaderAsJsonString, args.HttpResponse.StatusCode);
 						};
 
 						uploadFile.Error += delegate(object up_sender, ErrorEventArgs args) {

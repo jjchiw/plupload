@@ -271,7 +271,8 @@
 						code : plupload.IO_ERROR,
 						message : 'IO Error.',
 						details : message,
-						file : up.getFile(lookup[file_id])
+						file : up.getFile(lookup[file_id]),
+						response : message
 					});
 				});
 
@@ -303,13 +304,15 @@
 					}
 				});
 
-				uploader.bind("Silverlight:UploadChunkSuccessful", function(up, sl_id, chunk, chunks, text) {
+				uploader.bind("Silverlight:UploadChunkSuccessful", function(up, sl_id, chunk, chunks, text, httpHeaders, httpStatus){
 					var chunkArgs, file = up.getFile(lookup[sl_id]);
 
 					chunkArgs = {
 						chunk : chunk,
 						chunks : chunks,
-						response : text
+						response : text,
+						httpHeaders : httpHeaders,
+						httpStatus : httpStatus
 					};
 
 					up.trigger('ChunkUploaded', file, chunkArgs);
@@ -324,18 +327,22 @@
 						file.status = plupload.DONE;
 
 						up.trigger('FileUploaded', file, {
-							response : text
+							response : text,
+							httpHeaders : httpHeaders,
+							httpStatus : httpStatus
 						});
 					}
 				});
 
-				uploader.bind("Silverlight:UploadSuccessful", function(up, sl_id, response) {
+				uploader.bind("Silverlight:UploadSuccessful", function(up, sl_id, text, httpHeaders, httpStatus) {
 					var file = up.getFile(lookup[sl_id]);
 
 					file.status = plupload.DONE;
 
 					up.trigger('FileUploaded', file, {
-						response : response
+						response : text,
+						httpHeaders : httpHeaders,
+						httpStatus : httpStatus
 					});
 				});
 
